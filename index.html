@@ -344,7 +344,7 @@
   <script>
     // --- CONFIG ---
     const NATIONAL_DEX_LAST = 1025; // Gen 9's last Dex number (Pecharunt #1025, Feb 2024)
-    const SPRITE_URL = n => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png`;
+    const SPRITE_URL = n => `./data/pokemon/sprite-${n}.png`;
 
     // Types for dropdown and icons
     const ALL_TYPES = [
@@ -353,7 +353,31 @@
     ];
 
     // partywhale/pokemon-type-icons SVG icon url pattern
-    const TYPE_ICON_URL = t => `https://raw.githubusercontent.com/partywhale/pokemon-type-icons/main/icons/${t}.svg`;
+    const TYPE_ICON_URL = t => `./data/sprites/${t}.svg`;
+
+
+    // Shorter names for button display
+    const versionShortForms = {
+      "lets-go-pikachu": "LG Pikachu", "lets-go-eevee":"LG Eevee",
+      "black-2":"Blk2", "white-2":"Wht2",
+      "omega-ruby":"Ω Ruby", "alpha-sapphire":"α Sapph.",
+      "ultra-sun":"U. Sun", "ultra-moon":"U. Moon",
+      "brilliant-diamond":"BD", "shining-pearl":"SP",
+      "legends-arceus":"Arceus",
+    };
+    const versionNames = {
+      "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
+      "ruby": "Ruby", "sapphire": "Sapphire", "emerald": "Emerald", "firered": "FireRed", "leafgreen": "LeafGreen",
+      "diamond": "Diamond", "pearl": "Pearl", "platinum": "Platinum", "heartgold": "HeartGold", "soulsilver": "SoulSilver",
+      "black": "Black", "white": "White", "black-2": "Black 2", "white-2": "White 2",
+      "x": "X", "y": "Y", "omega-ruby": "Omega Ruby", "alpha-sapphire": "Alpha Sapphire",
+      "sun": "Sun", "moon": "Moon", "ultra-sun": "Ultra Sun", "ultra-moon": "Ultra Moon",
+      "lets-go-pikachu": "Let's Go Pikachu", "lets-go-eevee": "Let's Go Eevee",
+      "sword": "Sword", "shield": "Shield",
+      "brilliant-diamond": "Brilliant Diamond", "shining-pearl": "Shining Pearl",
+      "legends-arceus": "Legends: Arceus",
+      "scarlet": "Scarlet", "violet": "Violet"
+    };
 
     // Dex ranges for each generation
     const GENERATIONS = [
@@ -370,7 +394,7 @@
     ];
 
     // --- STATE ---
-    let dexList = []; // {id, name, sprite, types}
+    let mainPokemonData = null;
     let searchList = [];
     let pokeCache = {}; // id -> full entry
     let typeMap = {}; // id -> [types]
@@ -394,7 +418,7 @@
     detailOverlay.onclick = e => { if(e.target===detailOverlay) closeDetailBox(); };
     searchBtn.onclick = doSearch;
     searchBox.onkeyup = e => { if(e.key==='Enter') doSearch(); };
-    resetBtn.onclick = () => { searchBox.value=''; typeFilter.value=''; genFilter.value=''; showDexGrid(dexList); };
+    resetBtn.onclick = () => { searchBox.value=''; typeFilter.value=''; genFilter.value=''; showDexGrid(mainPokemonData.dexList); };
     typeFilter.onchange = doSearch;
     genFilter.onchange = doSearch;
 
@@ -419,37 +443,13 @@
     async function init() {
       loadingMsg.textContent = "Loading Pokédex...";
       try {
-        // Get all pokemon species up to the last nat dex for gen 9
-        const resp = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${NATIONAL_DEX_LAST}`);
-        const data = await resp.json();
-        // Now, get types for each using a batch of requests (API does not return types in this endpoint)
-        // We'll limit concurrency
-        dexList = data.results.map((p, i) => ({
-          id: i+1, name: p.name, sprite: SPRITE_URL(i+1), types: []
-        }));
+        const resp = await fetch("./data/pokemon.json");
+        mainPokemonData = await resp.json();
 
-        // Fetch types for all Pokemon, with concurrency limit
-        const BATCH = 32;
-        async function getTypesForBatch(batch) {
-          await Promise.all(batch.map(async p => {
-            try {
-              const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${p.id}`);
-              const d = await res.json();
-              p.types = d.types.map(t=>t.type.name);
-              typeMap[p.id] = p.types;
-            } catch {}
-          }));
-        }
-        let idx = 0;
-        while(idx < dexList.length) {
-          loadingMsg.textContent = `Loading Pokédex... (${idx+1}/${dexList.length})`;
-          await getTypesForBatch(dexList.slice(idx, idx+BATCH));
-          idx += BATCH;
-        }
         loadingMsg.textContent = "";
-        showDexGrid(dexList);
+        showDexGrid(mainPokemonData.dexList);
       } catch(e) {
-        loadingMsg.textContent = "Failed to load Pokédex. Check your connection.";
+        loadingMsg.textContent = "Failed to load Pokédex. Error: " + e.message;
       }
     }
 
@@ -457,7 +457,7 @@
       let q = searchBox.value.trim().toLowerCase();
       let t = typeFilter.value;
       let g = genFilter.value;
-      let filtered = dexList;
+      let filtered = mainPokemonData.dexList;
       // Filter by search
       if(q) {
         if(q.match(/^\d+$/)) {
@@ -503,83 +503,12 @@
     }
 
     async function showDetail(id, formId = null) {
-  detailOverlay.style.display = 'flex';
-  detailContent.innerHTML = "<div style='text-align:center; color:#888; margin:2em 0;'>Loading...</div>";
-  currentDetailId = id;
-  let pokeId = formId || id;
-  if (pokeCache[pokeId]) return renderDetail(pokeCache[pokeId]);
-  try {
-    // Fetch main data and species
-    const [data, species] = await Promise.all([
-      fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}`).then(r=>r.json()),
-      fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`).then(r=>r.json())
-    ]);
-    // Fetch varieties
-    const varieties = species.varieties.map(v => ({
-      id: v.pokemon.url.split('/').filter(Boolean).pop(),
-      name: v.pokemon.name,
-      is_default: v.is_default
-    }));
-    // Fetch forms
-    let forms = [];
-    try {
-      const formsData = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}/forms`).then(r=>r.json());
-      if (Array.isArray(formsData)) {
-        forms = formsData.map(f => ({
-          id: f.id,
-          name: f.name
-        }));
-      }
-    } catch {}
-    const dexEntry = {
-      id: pokeId,
-      name: data.name,
-      sprite: data.sprites.other?.['official-artwork']?.front_default || SPRITE_URL(pokeId),
-      types: data.types.map(t=>t.type.name),
-      stats: data.stats.map(s=>({ name: s.stat.name, base: s.base_stat })),
-      height: data.height/10,
-      weight: data.weight/10,
-      category: (species.genera.find(g=>g.language.name==='en')||{}).genus || "",
-      flavor_entries: species.flavor_text_entries.filter(f=>f.language.name==='en'),
-      version_order: [],
-      varieties,
-      forms
-    };
-        // Assign flavor text by version, map version-group to readable names
-        const versionNames = {
-          "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
-          "ruby": "Ruby", "sapphire": "Sapphire", "emerald": "Emerald", "firered": "FireRed", "leafgreen": "LeafGreen",
-          "diamond": "Diamond", "pearl": "Pearl", "platinum": "Platinum", "heartgold": "HeartGold", "soulsilver": "SoulSilver",
-          "black": "Black", "white": "White", "black-2": "Black 2", "white-2": "White 2",
-          "x": "X", "y": "Y", "omega-ruby": "Omega Ruby", "alpha-sapphire": "Alpha Sapphire",
-          "sun": "Sun", "moon": "Moon", "ultra-sun": "Ultra Sun", "ultra-moon": "Ultra Moon",
-          "lets-go-pikachu": "Let's Go Pikachu", "lets-go-eevee": "Let's Go Eevee",
-          "sword": "Sword", "shield": "Shield",
-          "brilliant-diamond": "Brilliant Diamond", "shining-pearl": "Shining Pearl",
-          "legends-arceus": "Legends: Arceus",
-          "scarlet": "Scarlet", "violet": "Violet"
-        };
-        // Deduplicate by version
-    const seen = {};
-    dexEntry.version_order = [];
-    for(const f of dexEntry.flavor_entries) {
-      const v = f.version.name;
-      if(!seen[v] && versionNames[v]) {
-        seen[v] = true;
-        dexEntry.version_order.push(v);
-      }
+      detailOverlay.style.display = 'flex';
+      detailContent.innerHTML = "<div style='text-align:center; color:#888; margin:2em 0;'>Loading...</div>";
+      currentDetailId = id;
+      let pokeId = formId || id;
+      return renderDetail(mainPokemonData.entries[pokeId]);
     }
-    dexEntry.flavor_texts = {};
-    for(const v of dexEntry.version_order) {
-      const entry = dexEntry.flavor_entries.find(f => f.version.name === v);
-      dexEntry.flavor_texts[v] = entry ? entry.flavor_text.replace(/\u000c/g," ").replace(/\s+/g," ").trim() : "";
-    }
-    pokeCache[pokeId] = dexEntry;
-    renderDetail(dexEntry);
-  } catch(e) {
-    detailContent.innerHTML = "<div style='text-align:center; color:#e51c23; margin:2em 0;'>Failed to load details.</div>";
-  }
-}
 
     function closeDetailBox() {
       detailOverlay.style.display = 'none';
@@ -615,13 +544,12 @@
         `).join('');
         // Form/Variety dropdown
         let formOptions = "";
-        if ((dex.varieties && dex.varieties.length > 1) || (dex.forms && dex.forms.length > 1)) {
-          const options = (dex.varieties.length > 1 ? dex.varieties : dex.forms);
+        if (dex.varieties.length > 1) {
           formOptions = `
             <div style="margin-bottom:0.7em;">
               <label for="formSelect" style="font-size:0.95em;">Form/Variety:</label>
               <select id="formSelect" style="margin-left:0.4em; font-size:1em;">
-                ${options.map(v => `<option value="${v.id}"${v.id==dex.id?' selected':''}>${v.name.replace(/-/g,' ')}</option>`).join('')}
+                ${dex.varieties.map(v => `<option value="${v.id}"${v.id==dex.id?' selected':''}>${v.name.replace(/-/g,' ')}</option>`).join('')}
               </select>
             </div>
           `;
@@ -631,7 +559,7 @@
             <div class="detail-header">
               <img src="${dex.sprite}" alt="${dex.name}">
               <div class="dex-id-name">
-                <div class="dex-no">#${String(dex.id).padStart(4,'0')}</div>
+                <div class="dex-no">#${String(dex.dex_id).padStart(4,'0')}</div>
                 <div class="poke-name">${dex.name}</div>
                 <div class="category">${dex.category}</div>
                 <div>${typesHtml}</div>
@@ -678,28 +606,6 @@
         default: return "#bbb";
       }
     }
-    // Shorter names for button display
-    const versionShortForms = {
-      "lets-go-pikachu": "LG Pikachu", "lets-go-eevee":"LG Eevee",
-      "black-2":"Blk2", "white-2":"Wht2",
-      "omega-ruby":"Ω Ruby", "alpha-sapphire":"α Sapph.",
-      "ultra-sun":"U. Sun", "ultra-moon":"U. Moon",
-      "brilliant-diamond":"BD", "shining-pearl":"SP",
-      "legends-arceus":"Arceus",
-    };
-    const versionNames = {
-      "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
-      "ruby": "Ruby", "sapphire": "Sapphire", "emerald": "Emerald", "firered": "FireRed", "leafgreen": "LeafGreen",
-      "diamond": "Diamond", "pearl": "Pearl", "platinum": "Platinum", "heartgold": "HeartGold", "soulsilver": "SoulSilver",
-      "black": "Black", "white": "White", "black-2": "Black 2", "white-2": "White 2",
-      "x": "X", "y": "Y", "omega-ruby": "Omega Ruby", "alpha-sapphire": "Alpha Sapphire",
-      "sun": "Sun", "moon": "Moon", "ultra-sun": "Ultra Sun", "ultra-moon": "Ultra Moon",
-      "lets-go-pikachu": "Let's Go Pikachu", "lets-go-eevee": "Let's Go Eevee",
-      "sword": "Sword", "shield": "Shield",
-      "brilliant-diamond": "Brilliant Diamond", "shining-pearl": "Shining Pearl",
-      "legends-arceus": "Legends: Arceus",
-      "scarlet": "Scarlet", "violet": "Violet"
-    };
   </script>
 </body>
 </html>

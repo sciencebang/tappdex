@@ -1,0 +1,24 @@
+{
+  "name": "tappdex",
+  "version": "1.0.0",
+  "main": "data.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sciencebang/tappdex.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sciencebang/tappdex/issues"
+  },
+  "homepage": "https://github.com/sciencebang/tappdex#readme",
+  "description": "",
+  "devDependencies": {
+    "node-fetch": "^3.3.2",
+    "static-server": "^2.2.1"
+  }
+}
