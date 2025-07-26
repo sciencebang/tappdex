@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TrinketOS Pokédex Tapp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Pixelfont from Google Fonts or local -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    @font-face {
+      font-family: 'pixelfont';
+      src: url('https://fonts.gstatic.com/s/pressstart2p/v14/e3t4euO8KNyE0lX5jXhM5FQ.woff2') format('woff2');
+      font-display: swap;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: 'pixelfont', 'Press Start 2P', monospace;
+      background: #181a1b;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    header {
+      background: #232325;
+      color: #f5f5f5;
+      padding: 1em 0.5em;
+      text-align: center;
+      font-size: 1.5em;
+      font-family: 'pixelfont', 'Press Start 2P', monospace;
+      font-weight: bold;
+      letter-spacing: 2px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+      border-bottom: 5px solid #333;
+    }
+    #main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 1em;
+    }
+    .search-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1em;
+      gap: 0.5em;
+    }
+    .search-bar input,
+    .search-bar select {
+      padding: 0.5em;
+      border-radius: 3px;
+      border: 1px solid #444;
+      font-size: 1em;
+      font-family: 'pixelfont', 'Press Start 2P', monospace;
+      background: #232325;
+      color: #e0e0e0;
+      outline: none;
+    }
+    .search-bar button {
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 0.5em 1em;
+      font-size: 1em;
+      font-family: 'pixelfont', 'Press Start 2P', monospace;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid #666;
+    }
+    .search-bar button:hover {
+      background: #666;
+    }
+    .dex-grid {
+      display: grid;
+      gap: 1em;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    }
+    .poke-card {
+      background: #232325;
+      border-radius: 8px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.15);
+      text-align: center;
+      padding: 0.7em 0.4em 0.8em 0.4em;
+      cursor: pointer;
+      transition: box-shadow 0.13s;
+      position: relative;
+      overflow: hidden;
+      border: none;
+    }
+    .poke-card.border {
+      padding: 5px 10px 5px 10px;
+      border: 12px solid;
+      border-image: url("http://localhost:8080/trinketos/images/border") 10 10 10 10 stretch;
+    }
+    .poke-card:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+      filter: brightness(1.08);
+    }
+    .poke-card img.poke-icon {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      margin-bottom: 0.2em;
+      background: #181a1b;
+      border-radius: 50%;
+      border: 1px solid #333;
+      margin-top: 0.2em;
+    }
+    .poke-card .dex-no {
+      font-size: 0.7em;
+      color: #aaa;
+      margin-bottom: 0.1em;
+      font-family: inherit;
+    }
+    .poke-card .poke-name {
+      font-weight: bold;
+      font-size: 0.9em;
+      margin-bottom: 0.2em;
+      text-transform: capitalize;
+      font-family: inherit;
+      color: #fff;
+    }
+    .poke-card .type-icons {
+      display: flex;
+      justify-content: center;
+      gap: 0.18em;
+      margin-bottom: 0.1em;
+    }
+    .poke-card .type-icon {
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      border-radius: 2px;
+      display: inline-block;
+      vertical-align: middle;
+      border: none;
+    }
+    /* DETAIL OVERLAY */
+    #detailOverlay {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0; top: 0; right: 0; bottom: 0;
+      background: rgba(24,24,24,0.82);
+      align-items: center;
+      justify-content: center;
+    }
+    #detailBox {
+      background: #232325;
+      border-radius: 8px;
+      max-width: 440px;
+      width: 95%;
+      max-height: 95vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.34);
+      padding: 1.5em 1.5em 2em 1.5em;
+      position: relative;
+      font-family: 'pixelfont', 'Press Start 2P', monospace;
+    }
+    #closeDetail {
+      position: absolute;
+      top: 0.7em;
+      right: 1.1em;
+      background: none;
+      border: none;
+      font-size: 1.7em;
+      color: #aaa;
+      cursor: pointer;
+    }
+    #closeDetail:hover {
+      color: #fff;
+    }
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 1em;
+      margin-bottom: 0.7em;
+    }
+    .detail-header img {
+      width: 80px;
+      height: 80px;
+      background: #181a1b;
+      border-radius: 50%;
+      border: 2px solid #232325;
+    }
+    .detail-header .dex-id-name {
+      flex: 1;
+    }
+    .detail-header .dex-id-name .dex-no {
+      font-size: 1.1em;
+      color: #aaa;
+    }
+    .detail-header .dex-id-name .poke-name {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #fff;
+      text-transform: capitalize;
+      letter-spacing: 1px;
+    }
+    .type-chip {
+      display: inline-block;
+      border-radius: 12px;
+      padding: 0.18em 0.8em;
+      font-size: 0.93em;
+      color: #181a1b;
+      margin: 0.07em 0.18em;
+      background: #eee;
+      font-weight: 500;
+      text-shadow: none;
+      box-shadow: 0 1px 2px #0001;
+      font-family: inherit;
+      border: 2px solid #999;
+    }
+    .category {
+      font-size: 1em;
+      color: #e0e0e0;
+      font-style: italic;
+      margin-bottom: 0.2em;
+    }
+    .metric-info {
+      font-size: 1em;
+      color: #e0e0e0;
+      margin-bottom: 0.5em;
+    }
+    .detail-section {
+      margin-top: 1em;
+    }
+    .detail-section h3 {
+      font-size: 1.06em;
+      margin-bottom: 0.3em;
+      color: #aaa;
+      font-weight: bold;
+      letter-spacing: 1px;
+      font-family: inherit;
+    }
+    .pokedex-entries {
+      margin-bottom: 0.5em;
+    }
+    .version-buttons {
+      margin-bottom: 0.2em;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.21em;
+    }
+    .version-btn {
+      border: 1px solid #555;
+      border-radius: 5px;
+      background: #222;
+      padding: 0.22em 0.47em;
+      font-size: 0.98em;
+      color: #e0e0e0;
+      cursor: pointer;
+      transition: background 0.14s, border 0.14s;
+      font-family: inherit;
+    }
+    .version-btn.active {
+      background: #e0e0e0;
+      border-color: #e0e0e0;
+      color: #212121;
+    }
+    .entry-text {
+      margin: 0.5em 0;
+      font-size: 1.03em;
+      color: #e0e0e0;
+      min-height: 44px;
+      background: #181a1b;
+      border-radius: 6px;
+      padding: 0.5em 0.6em;
+      border: 1px solid #232325;
+      font-family: inherit;
+    }
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.2em;
+    }
+    .stats-table td {
+      padding: 0.21em 0.33em;
+      font-size: 0.98em;
+      vertical-align: middle;
+      font-family: inherit;
+    }
+    .stat-label {
+      color: #e0e0e0;
+      width: 26%;
+    }
+    .stat-value {
+      text-align: right;
+      width: 12%;
+      font-weight: bold;
+      color: #fff;
+    }
+    .stat-bar-bg {
+      background: #444;
+      border-radius: 5px;
+      height: 12px;
+      overflow: hidden;
+      width: 100px;
+      margin-left: 0.4em;
+    }
+    .stat-bar {
+      height: 100%;
+      display: block;
+      border-radius: 5px;
+    }
+    @media (max-width: 600px) {
+      #main { padding: 0.5em; }
+      .dex-grid { gap: 0.5em; }
+      #detailBox { padding: 0.7em 0.15em 1.2em 0.15em; }
+      .detail-header img { width: 60px; height: 60px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    National Pokédex <br><span style="font-size: 0.5em; vertical-align: middle;">ver. TrinketOS</span>
+  </header>
+  <div id="main">
+    <div class="search-bar">
+      <input id="searchBox" type="text" placeholder="Search by name or #...">
+      <select id="typeFilter">
+        <option value="">All Types</option>
+      </select>
+      <select id="genFilter">
+        <option value="">All Generations</option>
+      </select>
+      <button id="searchBtn">Search</button>
+      <button id="resetBtn" title="Show all">Reset</button>
+    </div>
+    <div class="dex-grid" id="dexGrid">
+      <!-- Pokédex cards will be inserted here -->
+    </div>
+    <div id="loadingMsg" style="text-align:center; color:#888; margin-top:2em; font-size:1.2em; font-family:'pixelfont', 'Press Start 2P', monospace;"></div>
+  </div>
+  <div id="detailOverlay">
+    <div id="detailBox" class="border">
+      <button id="closeDetail" title="Close">&times;</button>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+  <script>
+    // --- CONFIG ---
+    const NATIONAL_DEX_LAST = 1025; // Gen 9's last Dex number (Pecharunt #1025, Feb 2024)
+    const SPRITE_URL = n => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png`;
+
+    // Types for dropdown and icons
+    const ALL_TYPES = [
+      "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic",
+      "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"
+    ];
+
+    // partywhale/pokemon-type-icons SVG icon url pattern
+    const TYPE_ICON_URL = t => `https://raw.githubusercontent.com/partywhale/pokemon-type-icons/main/icons/${t}.svg`;
+
+    // Dex ranges for each generation
+    const GENERATIONS = [
+      {label: "Gen 1 (Kanto)", start: 1, end: 151},
+      {label: "Gen 2 (Johto)", start: 152, end: 251},
+      {label: "Gen 3 (Hoenn)", start: 252, end: 386},
+      {label: "Gen 4 (Sinnoh)", start: 387, end: 493},
+      {label: "Gen 5 (Unova)", start: 494, end: 649},
+      {label: "Gen 6 (Kalos)", start: 650, end: 721},
+      {label: "Gen 7 (Alola)", start: 722, end: 809},
+      {label: "Gen 8 (Galar)", start: 810, end: 898},
+      {label: "Gen 8.5 (Hisui)", start: 899, end: 905},
+      {label: "Gen 9 (Paldea/Kitakami/Terapagos)", start: 906, end: 1025}
+    ];
+
+    // --- STATE ---
+    let dexList = []; // {id, name, sprite, types}
+    let searchList = [];
+    let pokeCache = {}; // id -> full entry
+    let typeMap = {}; // id -> [types]
+    let currentDetailId = null;
+
+    // --- DOM ---
+    const dexGrid = document.getElementById('dexGrid');
+    const loadingMsg = document.getElementById('loadingMsg');
+    const detailOverlay = document.getElementById('detailOverlay');
+    const detailContent = document.getElementById('detailContent');
+    const closeDetail = document.getElementById('closeDetail');
+    const searchBox = document.getElementById('searchBox');
+    const searchBtn = document.getElementById('searchBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const typeFilter = document.getElementById('typeFilter');
+    const genFilter = document.getElementById('genFilter');
+
+    // --- INIT ---
+    document.addEventListener('DOMContentLoaded', init);
+    closeDetail.onclick = closeDetailBox;
+    detailOverlay.onclick = e => { if(e.target===detailOverlay) closeDetailBox(); };
+    searchBtn.onclick = doSearch;
+    searchBox.onkeyup = e => { if(e.key==='Enter') doSearch(); };
+    resetBtn.onclick = () => { searchBox.value=''; typeFilter.value=''; genFilter.value=''; showDexGrid(dexList); };
+    typeFilter.onchange = doSearch;
+    genFilter.onchange = doSearch;
+
+    // Fill type/gen dropdowns
+    (function fillDropdowns(){
+      // Types
+      for(let t of ALL_TYPES) {
+        let opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t.charAt(0).toUpperCase()+t.slice(1);
+        typeFilter.appendChild(opt);
+      }
+      // Generations
+      for(let i=0;i<GENERATIONS.length;++i) {
+        let opt = document.createElement('option');
+        opt.value = i+1;
+        opt.textContent = GENERATIONS[i].label;
+        genFilter.appendChild(opt);
+      }
+    })();
+
+    async function init() {
+      loadingMsg.textContent = "Loading Pokédex...";
+      try {
+        // Get all pokemon species up to the last nat dex for gen 9
+        const resp = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${NATIONAL_DEX_LAST}`);
+        const data = await resp.json();
+        // Now, get types for each using a batch of requests (API does not return types in this endpoint)
+        // We'll limit concurrency
+        dexList = data.results.map((p, i) => ({
+          id: i+1, name: p.name, sprite: SPRITE_URL(i+1), types: []
+        }));
+
+        // Fetch types for all Pokemon, with concurrency limit
+        const BATCH = 32;
+        async function getTypesForBatch(batch) {
+          await Promise.all(batch.map(async p => {
+            try {
+              const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${p.id}`);
+              const d = await res.json();
+              p.types = d.types.map(t=>t.type.name);
+              typeMap[p.id] = p.types;
+            } catch {}
+          }));
+        }
+        let idx = 0;
+        while(idx < dexList.length) {
+          loadingMsg.textContent = `Loading Pokédex... (${idx+1}/${dexList.length})`;
+          await getTypesForBatch(dexList.slice(idx, idx+BATCH));
+          idx += BATCH;
+        }
+        loadingMsg.textContent = "";
+        showDexGrid(dexList);
+      } catch(e) {
+        loadingMsg.textContent = "Failed to load Pokédex. Check your connection.";
+      }
+    }
+
+    function doSearch() {
+      let q = searchBox.value.trim().toLowerCase();
+      let t = typeFilter.value;
+      let g = genFilter.value;
+      let filtered = dexList;
+      // Filter by search
+      if(q) {
+        if(q.match(/^\d+$/)) {
+          filtered = filtered.filter(p => p.id === parseInt(q));
+        } else {
+          filtered = filtered.filter(p => p.name.includes(q));
+        }
+      }
+      // Filter by type
+      if(t) {
+        filtered = filtered.filter(p => p.types && p.types.includes(t));
+      }
+      // Filter by generation
+      if(g) {
+        let gen = GENERATIONS[parseInt(g)-1];
+        filtered = filtered.filter(p => p.id >= gen.start && p.id <= gen.end);
+      }
+      showDexGrid(filtered);
+    }
+
+    function showDexGrid(list) {
+      dexGrid.innerHTML = "";
+      if(list.length === 0) {
+        dexGrid.innerHTML = "<div style='grid-column:1/-1; text-align:center; color:#888'>No Pokémon found.</div>";
+        return;
+      }
+      searchList = list;
+      for(const p of list) {
+        const card = document.createElement('div');
+        card.className = "poke-card border";
+        card.onclick = () => showDetail(p.id);
+        card.tabIndex = 0;
+        card.innerHTML = `
+          <div class="dex-no">#${String(p.id).padStart(4,'0')}</div>
+          <img class="poke-icon" src="${p.sprite}" alt="${p.name}">
+          <div class="poke-name">${p.name}</div>
+          <div class="type-icons">
+            ${p.types.map(type => `<img class="type-icon" src="${TYPE_ICON_URL(type)}" title="${type}" alt="${type}">`).join('')}
+          </div>
+        `;
+        dexGrid.appendChild(card);
+      }
+    }
+
+    async function showDetail(id) {
+      detailOverlay.style.display = 'flex';
+      detailContent.innerHTML = "<div style='text-align:center; color:#888; margin:2em 0;'>Loading...</div>";
+      currentDetailId = id;
+      if(pokeCache[id]) return renderDetail(pokeCache[id]);
+      try {
+        const [data, species] = await Promise.all([
+          fetch(`https://pokeapi.co/api/v2/pokemon/${id}`).then(r=>r.json()),
+          fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`).then(r=>r.json())
+        ]);
+        const dexEntry = {
+          id,
+          name: data.name,
+          sprite: data.sprites.other?.['official-artwork']?.front_default || SPRITE_URL(id),
+          types: data.types.map(t=>t.type.name),
+          stats: data.stats.map(s=>({ name: s.stat.name, base: s.base_stat })),
+          height: data.height/10,
+          weight: data.weight/10,
+          category: (species.genera.find(g=>g.language.name==='en')||{}).genus || "",
+          flavor_entries: species.flavor_text_entries.filter(f=>f.language.name==='en'),
+          version_order: [],
+        };
+        // Assign flavor text by version, map version-group to readable names
+        const versionNames = {
+          "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
+          "ruby": "Ruby", "sapphire": "Sapphire", "emerald": "Emerald", "firered": "FireRed", "leafgreen": "LeafGreen",
+          "diamond": "Diamond", "pearl": "Pearl", "platinum": "Platinum", "heartgold": "HeartGold", "soulsilver": "SoulSilver",
+          "black": "Black", "white": "White", "black-2": "Black 2", "white-2": "White 2",
+          "x": "X", "y": "Y", "omega-ruby": "Omega Ruby", "alpha-sapphire": "Alpha Sapphire",
+          "sun": "Sun", "moon": "Moon", "ultra-sun": "Ultra Sun", "ultra-moon": "Ultra Moon",
+          "lets-go-pikachu": "Let's Go Pikachu", "lets-go-eevee": "Let's Go Eevee",
+          "sword": "Sword", "shield": "Shield",
+          "brilliant-diamond": "Brilliant Diamond", "shining-pearl": "Shining Pearl",
+          "legends-arceus": "Legends: Arceus",
+          "scarlet": "Scarlet", "violet": "Violet"
+        };
+        // Deduplicate by version
+        const seen = {};
+        dexEntry.version_order = [];
+        for(const f of dexEntry.flavor_entries) {
+          const v = f.version.name;
+          if(!seen[v] && versionNames[v]) {
+            seen[v] = true;
+            dexEntry.version_order.push(v);
+          }
+        }
+        dexEntry.flavor_texts = {};
+        for(const v of dexEntry.version_order) {
+          const entry = dexEntry.flavor_entries.find(f => f.version.name === v);
+          dexEntry.flavor_texts[v] = entry ? entry.flavor_text.replace(/\u000c/g," ").replace(/\s+/g," ").trim() : "";
+        }
+        pokeCache[id] = dexEntry;
+        renderDetail(dexEntry);
+      } catch(e) {
+        detailContent.innerHTML = "<div style='text-align:center; color:#e51c23; margin:2em 0;'>Failed to load details.</div>";
+      }
+    }
+
+    function closeDetailBox() {
+      detailOverlay.style.display = 'none';
+      detailContent.innerHTML = "";
+      currentDetailId = null;
+    }
+
+    function renderDetail(dex) {
+      // Type chips and icons
+      const typesHtml = dex.types.map(type =>
+        `<span class="type-chip"><img class="type-icon" src="${TYPE_ICON_URL(type)}" title="${type}" alt="${type}" style="width:18px;height:18px;vertical-align:middle;margin-right:0.12em;">${type.charAt(0).toUpperCase()+type.slice(1)}</span>`
+      ).join('');
+      const verBtns = dex.version_order.map((v,i) => `<button type="button" class="version-btn${i===0?' active':''}" data-v="${v}">${v in versionShortForms ? versionShortForms[v] : (versionNames[v]||v)}</button>`).join('');
+      const firstVer = dex.version_order[0];
+      const firstText = dex.flavor_texts[firstVer] || "No Pokédex text available.";
+      const statMap = {
+        hp: "HP", attack: "Attack", defense: "Defense",
+        'special-attack': "Sp. Atk", 'special-defense': "Sp. Def", speed: "Speed"
+      };
+      const maxStat = Math.max(...dex.stats.map(s=>s.base), 160);
+      const statsHtml = dex.stats
+        .filter(s => Object.keys(statMap).includes(s.name))
+        .map(s => `
+          <tr>
+            <td class="stat-label">${statMap[s.name]}</td>
+            <td class="stat-value">${s.base}</td>
+            <td>
+              <div class="stat-bar-bg">
+                <span class="stat-bar" style="background:${statBarColor(s.name)}; width:${Math.round(s.base/maxStat*100)}%"></span>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      detailContent.innerHTML = `
+        <div class="detail-header">
+          <img src="${dex.sprite}" alt="${dex.name}">
+          <div class="dex-id-name">
+            <div class="dex-no">#${String(dex.id).padStart(4,'0')}</div>
+            <div class="poke-name">${dex.name}</div>
+            <div class="category">${dex.category}</div>
+            <div>${typesHtml}</div>
+          </div>
+        </div>
+        <div class="metric-info">
+          <strong>Height:</strong> ${(dex.height).toFixed(1)} m &nbsp; | &nbsp; <strong>Weight:</strong> ${(dex.weight).toFixed(1)} kg
+        </div>
+        <div class="detail-section">
+          <h3>Pokédex Text</h3>
+          <div class="version-buttons">${verBtns}</div>
+          <div class="entry-text" id="flavorText">${firstText}</div>
+        </div>
+        <div class="detail-section">
+          <h3>Base Stats</h3>
+          <table class="stats-table">${statsHtml}</table>
+        </div>
+      `;
+      // Version switching
+      const btns = detailContent.querySelectorAll('.version-btn');
+      btns.forEach(btn => btn.onclick = function() {
+        btns.forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        const v = btn.getAttribute('data-v');
+        document.getElementById('flavorText').textContent = dex.flavor_texts[v] || "No Pokédex text available.";
+      });
+    }
+
+    function statBarColor(stat) {
+      switch(stat) {
+        case "hp": return "#fd3456";
+        case "attack": return "#f9a825";
+        case "defense": return "#59c2ff";
+        case "special-attack": return "#b388ff";
+        case "special-defense": return "#48e1ad";
+        case "speed": return "#ffe082";
+        default: return "#bbb";
+      }
+    }
+    // Shorter names for button display
+    const versionShortForms = {
+      "lets-go-pikachu": "LG Pikachu", "lets-go-eevee":"LG Eevee",
+      "black-2":"Blk2", "white-2":"Wht2",
+      "omega-ruby":"Ω Ruby", "alpha-sapphire":"α Sapph.",
+      "ultra-sun":"U. Sun", "ultra-moon":"U. Moon",
+      "brilliant-diamond":"BD", "shining-pearl":"SP",
+      "legends-arceus":"Arceus",
+    };
+    const versionNames = {
+      "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
+      "ruby": "Ruby", "sapphire": "Sapphire", "emerald": "Emerald", "firered": "FireRed", "leafgreen": "LeafGreen",
+      "diamond": "Diamond", "pearl": "Pearl", "platinum": "Platinum", "heartgold": "HeartGold", "soulsilver": "SoulSilver",
+      "black": "Black", "white": "White", "black-2": "Black 2", "white-2": "White 2",
+      "x": "X", "y": "Y", "omega-ruby": "Omega Ruby", "alpha-sapphire": "Alpha Sapphire",
+      "sun": "Sun", "moon": "Moon", "ultra-sun": "Ultra Sun", "ultra-moon": "Ultra Moon",
+      "lets-go-pikachu": "Let's Go Pikachu", "lets-go-eevee": "Let's Go Eevee",
+      "sword": "Sword", "shield": "Shield",
+      "brilliant-diamond": "Brilliant Diamond", "shining-pearl": "Shining Pearl",
+      "legends-arceus": "Legends: Arceus",
+      "scarlet": "Scarlet", "violet": "Violet"
+    };
+  </script>
+</body>
+</html>
