@@ -46,6 +46,8 @@
       gap: 0.5em;
     }
     .search-bar input,
+#detailOverlay select,
+#detailOverlay input,
     .search-bar select {
       padding: 0.5em;
       border-radius: 3px;
@@ -500,28 +502,49 @@
       }
     }
 
-    async function showDetail(id) {
-      detailOverlay.style.display = 'flex';
-      detailContent.innerHTML = "<div style='text-align:center; color:#888; margin:2em 0;'>Loading...</div>";
-      currentDetailId = id;
-      if(pokeCache[id]) return renderDetail(pokeCache[id]);
-      try {
-        const [data, species] = await Promise.all([
-          fetch(`https://pokeapi.co/api/v2/pokemon/${id}`).then(r=>r.json()),
-          fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`).then(r=>r.json())
-        ]);
-        const dexEntry = {
-          id,
-          name: data.name,
-          sprite: data.sprites.other?.['official-artwork']?.front_default || SPRITE_URL(id),
-          types: data.types.map(t=>t.type.name),
-          stats: data.stats.map(s=>({ name: s.stat.name, base: s.base_stat })),
-          height: data.height/10,
-          weight: data.weight/10,
-          category: (species.genera.find(g=>g.language.name==='en')||{}).genus || "",
-          flavor_entries: species.flavor_text_entries.filter(f=>f.language.name==='en'),
-          version_order: [],
-        };
+    async function showDetail(id, formId = null) {
+  detailOverlay.style.display = 'flex';
+  detailContent.innerHTML = "<div style='text-align:center; color:#888; margin:2em 0;'>Loading...</div>";
+  currentDetailId = id;
+  let pokeId = formId || id;
+  if (pokeCache[pokeId]) return renderDetail(pokeCache[pokeId]);
+  try {
+    // Fetch main data and species
+    const [data, species] = await Promise.all([
+      fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}`).then(r=>r.json()),
+      fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`).then(r=>r.json())
+    ]);
+    // Fetch varieties
+    const varieties = species.varieties.map(v => ({
+      id: v.pokemon.url.split('/').filter(Boolean).pop(),
+      name: v.pokemon.name,
+      is_default: v.is_default
+    }));
+    // Fetch forms
+    let forms = [];
+    try {
+      const formsData = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}/forms`).then(r=>r.json());
+      if (Array.isArray(formsData)) {
+        forms = formsData.map(f => ({
+          id: f.id,
+          name: f.name
+        }));
+      }
+    } catch {}
+    const dexEntry = {
+      id: pokeId,
+      name: data.name,
+      sprite: data.sprites.other?.['official-artwork']?.front_default || SPRITE_URL(pokeId),
+      types: data.types.map(t=>t.type.name),
+      stats: data.stats.map(s=>({ name: s.stat.name, base: s.base_stat })),
+      height: data.height/10,
+      weight: data.weight/10,
+      category: (species.genera.find(g=>g.language.name==='en')||{}).genus || "",
+      flavor_entries: species.flavor_text_entries.filter(f=>f.language.name==='en'),
+      version_order: [],
+      varieties,
+      forms
+    };
         // Assign flavor text by version, map version-group to readable names
         const versionNames = {
           "red": "Red", "blue": "Blue", "yellow": "Yellow", "gold": "Gold", "silver": "Silver", "crystal": "Crystal",
@@ -537,26 +560,26 @@
           "scarlet": "Scarlet", "violet": "Violet"
         };
         // Deduplicate by version
-        const seen = {};
-        dexEntry.version_order = [];
-        for(const f of dexEntry.flavor_entries) {
-          const v = f.version.name;
-          if(!seen[v] && versionNames[v]) {
-            seen[v] = true;
-            dexEntry.version_order.push(v);
-          }
-        }
-        dexEntry.flavor_texts = {};
-        for(const v of dexEntry.version_order) {
-          const entry = dexEntry.flavor_entries.find(f => f.version.name === v);
-          dexEntry.flavor_texts[v] = entry ? entry.flavor_text.replace(/\u000c/g," ").replace(/\s+/g," ").trim() : "";
-        }
-        pokeCache[id] = dexEntry;
-        renderDetail(dexEntry);
-      } catch(e) {
-        detailContent.innerHTML = "<div style='text-align:center; color:#e51c23; margin:2em 0;'>Failed to load details.</div>";
+    const seen = {};
+    dexEntry.version_order = [];
+    for(const f of dexEntry.flavor_entries) {
+      const v = f.version.name;
+      if(!seen[v] && versionNames[v]) {
+        seen[v] = true;
+        dexEntry.version_order.push(v);
       }
     }
+    dexEntry.flavor_texts = {};
+    for(const v of dexEntry.version_order) {
+      const entry = dexEntry.flavor_entries.find(f => f.version.name === v);
+      dexEntry.flavor_texts[v] = entry ? entry.flavor_text.replace(/\u000c/g," ").replace(/\s+/g," ").trim() : "";
+    }
+    pokeCache[pokeId] = dexEntry;
+    renderDetail(dexEntry);
+  } catch(e) {
+    detailContent.innerHTML = "<div style='text-align:center; color:#e51c23; margin:2em 0;'>Failed to load details.</div>";
+  }
+}
 
     function closeDetailBox() {
       detailOverlay.style.display = 'none';
@@ -590,29 +613,50 @@
             </td>
           </tr>
         `).join('');
-      detailContent.innerHTML = `
-        <div class="detail-header">
-          <img src="${dex.sprite}" alt="${dex.name}">
-          <div class="dex-id-name">
-            <div class="dex-no">#${String(dex.id).padStart(4,'0')}</div>
-            <div class="poke-name">${dex.name}</div>
-            <div class="category">${dex.category}</div>
-            <div>${typesHtml}</div>
-          </div>
-        </div>
-        <div class="metric-info">
-          <strong>Height:</strong> ${(dex.height).toFixed(1)} m &nbsp; | &nbsp; <strong>Weight:</strong> ${(dex.weight).toFixed(1)} kg
-        </div>
-        <div class="detail-section">
-          <h3>Pokédex Text</h3>
-          <div class="version-buttons">${verBtns}</div>
-          <div class="entry-text" id="flavorText">${firstText}</div>
-        </div>
-        <div class="detail-section">
-          <h3>Base Stats</h3>
-          <table class="stats-table">${statsHtml}</table>
-        </div>
-      `;
+        // Form/Variety dropdown
+        let formOptions = "";
+        if ((dex.varieties && dex.varieties.length > 1) || (dex.forms && dex.forms.length > 1)) {
+          const options = (dex.varieties.length > 1 ? dex.varieties : dex.forms);
+          formOptions = `
+            <div style="margin-bottom:0.7em;">
+              <label for="formSelect" style="font-size:0.95em;">Form/Variety:</label>
+              <select id="formSelect" style="margin-left:0.4em; font-size:1em;">
+                ${options.map(v => `<option value="${v.id}"${v.id==dex.id?' selected':''}>${v.name.replace(/-/g,' ')}</option>`).join('')}
+              </select>
+            </div>
+          `;
+        }
+        detailContent.innerHTML = `
+            ${formOptions}
+            <div class="detail-header">
+              <img src="${dex.sprite}" alt="${dex.name}">
+              <div class="dex-id-name">
+                <div class="dex-no">#${String(dex.id).padStart(4,'0')}</div>
+                <div class="poke-name">${dex.name}</div>
+                <div class="category">${dex.category}</div>
+                <div>${typesHtml}</div>
+              </div>
+            </div>
+            <div class="metric-info">
+              <strong>Height:</strong> ${(dex.height).toFixed(1)} m &nbsp; | &nbsp; <strong>Weight:</strong> ${(dex.weight).toFixed(1)} kg
+            </div>
+            <div class="detail-section">
+              <h3>Pokédex Text</h3>
+              <div class="version-buttons">${verBtns}</div>
+              <div class="entry-text" id="flavorText">${firstText}</div>
+            </div>
+            <div class="detail-section">
+              <h3>Base Stats</h3>
+              <table class="stats-table">${statsHtml}</table>
+            </div>
+  `;
+  // Form/Variety switching
+  const formSelect = detailContent.querySelector('#formSelect');
+  if (formSelect) {
+    formSelect.onchange = function() {
+      showDetail(currentDetailId, formSelect.value);
+    };
+  }
       // Version switching
       const btns = detailContent.querySelectorAll('.version-btn');
       btns.forEach(btn => btn.onclick = function() {
