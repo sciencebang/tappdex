@@ -353,7 +353,7 @@
     ];
 
     // partywhale/pokemon-type-icons SVG icon url pattern
-    const TYPE_ICON_URL = t => `./data/sprites/${t}.svg`;
+    const TYPE_ICON_URL = t => `./data/sprites/${t}.png`;
 
 
     // Shorter names for button display
@@ -463,7 +463,7 @@
         if(q.match(/^\d+$/)) {
           filtered = filtered.filter(p => p.id === parseInt(q));
         } else {
-          filtered = filtered.filter(p => p.name.includes(q));
+          filtered = filtered.filter(p => p.name.toLowerCase().includes(q));
         }
       }
       // Filter by type

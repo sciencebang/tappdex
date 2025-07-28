@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import { promises as fs } from "fs";
 import * as path from "path";
-import * as zlib from "zlib"
+import sharp from "sharp";
 
 // run this script to regenerate all the static data
 
@@ -74,7 +74,12 @@ dataFile.dexList = Object.values(dataFile.entries).filter(e => e.is_default_form
     id: p.id, name: p.name, sprite: p.sprite, types: p.types
 }));
 
-await Promise.all([...types.values()].map(t => downloadUrl(TYPE_ICON_URL(t), `./data/sprites/${t}.svg`)));
+for (const type of types) {
+    const data = await fetch(TYPE_ICON_URL(type));
+    const buf = await data.arrayBuffer();
+    await sharp(buf).resize(64, 64).toFile(`data/sprites/${type}.png`);
+}
+// await Promise.all([...types.values()].map(t => downloadUrl(TYPE_ICON_URL(t), `./data/sprites/${t}.svg`)));
 
 async function createDexEntry(id, entryUrl, defaultId) {
     entryUrl = entryUrl || `https://pokeapi.co/api/v2/pokemon/${id}/`;
@@ -112,10 +117,10 @@ async function createDexEntry(id, entryUrl, defaultId) {
 
 function getSprites(entry) {
     const entries = [
-        entry.sprites.other?.['official-artwork']?.front_default,
-        entry.sprites.other?.['official-artwork']?.front_female,
-        entry.sprites.other?.['official-artwork']?.front_shiny,
-        entry.sprites.other?.['official-artwork']?.front_shiny_female,
+        // entry.sprites.other?.['official-artwork']?.front_default,
+        // entry.sprites.other?.['official-artwork']?.front_female,
+        // entry.sprites.other?.['official-artwork']?.front_shiny,
+        // entry.sprites.other?.['official-artwork']?.front_shiny_female,
         entry.sprites.front_default,
         entry.sprites.front_female,
         entry.sprites.front_shiny,
@@ -137,10 +142,6 @@ function buildFlavourTexts(species) {
     return ret;
 }
 const jsonResult = JSON.stringify(dataFile, null, 2);
-// const deflatedResult = zlib.gzipSync(jsonResult, {
-//     level: 9,
-// });
-// await fs.writeFile("data/pokemon.json.gz", deflatedResult);
 await fs.writeFile("data/pokemon.json", jsonResult);
 
 async function downloadUrl(url, puthere, parseJson, okToFail = false) {

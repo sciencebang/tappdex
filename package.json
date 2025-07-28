@@ -19,6 +19,7 @@
   "description": "",
   "devDependencies": {
     "node-fetch": "^3.3.2",
+    "sharp": "^0.34.3",
     "static-server": "^2.2.1"
   }
 }
