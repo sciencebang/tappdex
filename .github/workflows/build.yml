@@ -16,9 +16,8 @@ jobs:
               uses: actions/cache@v4
               with:
                 path: data
-                key: data-${{github.ref}}-${{hashFiles('data/**/*')}}
+                key: data-${{github.ref_name}}
                 restore-keys: |
-                              data-${{github.ref}}
                               data-main
             - run: ./makeBundle.sh
             - name: Archive production artifacts
